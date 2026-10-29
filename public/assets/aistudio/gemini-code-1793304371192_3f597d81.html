@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jogo de Probabilidade com Dados</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap');
+    
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      overflow-x: hidden;
+    }
+
+    .glass-card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    .dice-container {
+      perspective: 600px;
+    }
+
+    .dice {
+      width: 80px;
+      height: 80px;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .dice-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(145deg, #ffffff, #e2e8f0);
+      border: 2px solid #cbd5e1;
+      border-radius: 16px;
+      display: grid;
+      grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+      padding: 8px;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.1), 0 8px 15px rgba(0,0,0,0.3);
+    }
+
+    .dot {
+      width: 14px;
+      height: 14px;
+      background-color: #1e293b;
+      border-radius: 50%;
+      align-self: center;
+      justify-self: center;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+    }
+
+    .dot.red { background-color: #ef4444; }
+
+    .face-1 { transform: rotateY(0deg) translateZ(40px); }
+    .face-2 { transform: rotateY(90deg) translateZ(40px); }
+    .face-3 { transform: rotateY(180deg) translateZ(40px); }
+    .face-4 { transform: rotateY(-90deg) translateZ(40px); }
+    .face-5 { transform: rotateX(90deg) translateZ(40px); }
+    .face-6 { transform: rotateX(-90deg) translateZ(40px); }
+
+    .fullscreen-overlay {
+      backdrop-filter: blur(16px);
+      transition: opacity 0.4s ease;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 md:p-8">
+
+  <!-- CABEÇALHO DA PARTIDA -->
+  <header class="max-w-5xl mx-auto w-full flex justify-between items-center mb-6 glass-card p-4 rounded-2xl">
+    <div class="flex items-center space-x-3">
+      <div class="bg-indigo-600 p-2.5 rounded-xl shadow-lg">
+        <i class="fa-solid fa-dice-d6 text-2xl text-white"></i>
+      </div>
+      <div>
+        <h1 class="font-extrabold text-xl leading-none">PROBA<span class="text-indigo-400">DADOS</span></h1>
+        <p id="round-tracker" class="text-xs text-slate-400 font-semibold mt-0.5">Rodada 1 de ∞</p>
+      </div>
+    </div>
+
+    <div class="flex items-center space-x-2">
+      <button onclick="openRulesModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition flex items-center space-x-1.5">
+        <i class="fa-solid fa-circle-question text-indigo-400"></i>
+        <span>Regras</span>
+      </button>
+
+      <button onclick="openCodeModal()" class="px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-xs font-semibold text-amber-400 border border-amber-500/30 transition flex items-center space-x-1.5">
+        <i class="fa-solid fa-key"></i>
+        <span>Código</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ARENA PRINCIPAL -->
+  <main class="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-6 flex-1 items-start">
+    
+    <!-- PAINEL DOS DADOS (ESQUERDA) -->
+    <div class="md:col-span-7 glass-card p-6 md:p-8 rounded-3xl flex flex-col items-center justify-between min-h-[420px] relative overflow-hidden">
+      
+      <div class="w-full flex items-center justify-between bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60 mb-6">
+        <div class="flex items-center space-x-3">
+          <div id="current-player-avatar" class="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center font-bold text-white shadow-md">
+            P1
+          </div>
+          <div>
+            <span class="text-xs uppercase text-slate-400 font-bold tracking-wider">Vez do Jogador</span>
+            <h2 id="current-player-name" class="font-bold text-base text-white">Jogador 1</h2>
+          </div>
+        </div>
+        <div class="text-right">
+          <span class="text-xs uppercase text-slate-400 font-bold tracking-wider">Saldo Atual</span>
+          <div id="current-player-balance" class="font-black text-lg text-emerald-400">R$ 10.000</div>
+        </div>
+      </div>
+
+      <div id="result-badge" class="opacity-0 transition-opacity duration-300 mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
+        Aguardando Aposta...
+      </div>
+
+      <!-- DADOS 3D -->
+      <div class="flex items-center justify-center space-x-8 md:space-x-12 my-6">
+        <div class="dice-container">
+          <div id="dice1" class="dice">
+            <div class="dice-face face-1"><span class="dot red col-start-2 row-start-2"></span></div>
+            <div class="dice-face face-2"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-3 row-start-3"></span></div>
+            <div class="dice-face face-3"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-2 row-start-2"></span><span class="dot col-start-3 row-start-3"></span></div>
+            <div class="dice-face face-4"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-3 row-start-1"></span><span class="dot col-start-1 row-start-3"></span><span class="dot col-start-3 row-start-3"></span></div>
+            <div class="dice-face face-5"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-3 row-start-1"></span><span class="dot col-start-2 row-start-2"></span><span class="dot col-start-1 row-start-3"></span><span class="dot col-start-3 row-start-3"></span></div>
+            <div class="dice-face face-6"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-3 row-start-1"></span><span class="dot col-start-1 row-start-2"></span><span class="dot col-start-3 row-start-2"></span><span class="dot col-start-1 row-start-3"></span><span class="dot col-start-3 row-start-3"></span></div>
+          </div>
+        </div>
+
+        <div class="dice-container">
+          <div id="dice2" class="dice">
+            <div class="dice-face face-1"><span class="dot red col-start-2 row-start-2"></span></div>
+            <div class="dice-face face-2"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-3 row-start-3"></span></div>
+            <div class="dice-face face-3"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-2 row-start-2"></span><span class="dot col-start-3 row-start-3"></span></div>
+            <div class="dice-face face-4"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-3 row-start-1"></span><span class="dot col-start-1 row-start-3"></span><span class="dot col-start-3 row-start-3"></span></div>
+            <div class="dice-face face-5"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-3 row-start-1"></span><span class="dot col-start-2 row-start-2"></span><span class="dot col-start-1 row-start-3"></span><span class="dot col-start-3 row-start-3"></span></div>
+            <div class="dice-face face-6"><span class="dot col-start-1 row-start-1"></span><span class="dot col-start-3 row-start-1"></span><span class="dot col-start-1 row-start-2"></span><span class="dot col-start-3 row-start-2"></span><span class="dot col-start-1 row-start-3"></span><span class="dot col-start-3 row-start-3"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center mt-2">
+        <span class="text-xs text-slate-400 font-medium uppercase tracking-widest block">Soma dos Dados</span>
+        <span id="dice-sum" class="text-4xl font-extrabold text-white">--</span>
+      </div>
+    </div>
+
+    <!-- PAINEL DE APOSTA E AÇÕES (DIREITA) -->
+    <div class="md:col-span-5 glass-card p-6 md:p-8 rounded-3xl flex flex-col justify-between space-y-6">
+      <div>
+        <div class="flex justify-between items-center mb-3">
+          <label class="text-xs uppercase text-slate-400 font-bold tracking-wider">Quanto deseja apostar?</label>
+        </div>
+
+        <div class="relative rounded-2xl bg-slate-900/90 border border-slate-700/80 focus-within:border-indigo-500 transition p-3">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-lg">R$</span>
+          <input type="number" id="bet-input" value="2500" min="1" class="w-full bg-transparent pl-10 pr-2 text-2xl font-black text-white focus:outline-none" placeholder="0">
+        </div>
+
+        <div class="grid grid-cols-4 gap-2 mt-3">
+          <button onclick="setBetPercent(0.1)" class="py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 border border-slate-700 transition">10%</button>
+          <button onclick="setBetPercent(0.25)" class="py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 border border-slate-700 transition">25%</button>
+          <button onclick="setBetPercent(0.5)" class="py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 border border-slate-700 transition">50%</button>
+          <button onclick="setBetPercent(1)" class="py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-xs font-bold text-amber-400 border border-amber-500/30 transition">ALL-IN</button>
+        </div>
+      </div>
+
+      <!-- BOTÃO DE SABOTAGEM OCASIONAL COM TIMER -->
+      <div id="sabotage-container" class="hidden">
+        <button onclick="openSabotageOverlay()" class="w-full py-3.5 rounded-2xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 font-bold text-xs border border-rose-500/40 transition flex items-center justify-between px-4 animate-pulse">
+          <span class="flex items-center space-x-2">
+            <i class="fa-solid fa-skull"></i>
+            <span>SABOTAR ADVERSÁRIO</span>
+          </span>
+          <span id="sabotage-btn-timer" class="bg-rose-500 text-slate-950 font-black text-[11px] px-2 py-0.5 rounded-lg">10s</span>
+        </button>
+      </div>
+
+      <div id="action-buttons-container">
+        <button id="roll-btn" onclick="rollDice()" class="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-base tracking-wide shadow-lg shadow-indigo-600/30 transition transform active:scale-95 flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-dice text-xl"></i>
+          <span>ROLAR DADOS</span>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL INICIAL DE CONFIGURAÇÃO -->
+  <div id="setup-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
+    <div class="glass-card max-w-md w-full p-6 md:p-8 rounded-3xl border border-slate-700">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-2xl flex items-center justify-center mx-auto mb-3">
+          <i class="fa-solid fa-users text-2xl"></i>
+        </div>
+        <h2 class="text-2xl font-extrabold text-white">Configurar Partida</h2>
+        <p class="text-xs text-slate-400 mt-1">Defina os jogadores e o limite de rodadas.</p>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs uppercase font-bold text-slate-400 block mb-2">Número de Jogadores</label>
+          <div class="grid grid-cols-4 gap-2">
+            <button onclick="setPlayerCount(1)" class="player-count-btn py-2.5 rounded-xl bg-slate-800 text-white font-bold text-sm border border-slate-700">1</button>
+            <button onclick="setPlayerCount(2)" class="player-count-btn py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm border border-indigo-500">2</button>
+            <button onclick="setPlayerCount(3)" class="player-count-btn py-2.5 rounded-xl bg-slate-800 text-white font-bold text-sm border border-slate-700">3</button>
+            <button onclick="setPlayerCount(4)" class="player-count-btn py-2.5 rounded-xl bg-slate-800 text-white font-bold text-sm border border-slate-700">4</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs uppercase font-bold text-slate-400 block mb-2">Quantidade de Rodadas</label>
+          <div class="grid grid-cols-4 gap-2">
+            <button onclick="setRoundLimit(5)" class="round-limit-btn py-2 rounded-xl bg-slate-800 text-white font-bold text-xs border border-slate-700">5</button>
+            <button onclick="setRoundLimit(10)" class="round-limit-btn py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs border border-indigo-500">10</button>
+            <button onclick="setRoundLimit(15)" class="round-limit-btn py-2 rounded-xl bg-slate-800 text-white font-bold text-xs border border-slate-700">15</button>
+            <button onclick="setRoundLimit(0)" class="round-limit-btn py-2 rounded-xl bg-slate-800 text-white font-bold text-xs border border-slate-700">Sem Fim</button>
+          </div>
+        </div>
+
+        <div id="player-inputs-container" class="space-y-2 max-h-36 overflow-y-auto pr-1"></div>
+
+        <button onclick="startGame()" class="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-base shadow-lg shadow-indigo-600/30 transition transform active:scale-95">
+          INICIAR JOGO
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERLAY BORRADO DE TRANSIÇÃO DE TURNO -->
+  <div id="turn-overlay" class="fixed inset-0 bg-slate-950/85 fullscreen-overlay flex flex-col items-center justify-center p-6 z-40 hidden opacity-0">
+    <div class="text-center space-y-4 max-w-sm">
+      <div id="overlay-avatar" class="w-20 h-20 rounded-2xl bg-indigo-500 flex items-center justify-center text-3xl font-black text-white shadow-2xl mx-auto">
+        P1
+      </div>
+      <h3 id="overlay-title" class="text-3xl md:text-4xl font-extrabold text-white tracking-tight uppercase">VEZ DE JOGADOR 1</h3>
+      <p id="overlay-subtitle" class="text-sm text-slate-400">Prepare seu valor de aposta.</p>
+      
+      <button onclick="closeTurnOverlay()" class="mt-6 px-8 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm tracking-wide shadow-lg shadow-indigo-600/30 transition transform active:scale-95">
+        COMEÇAR JOGADA
+      </button>
+    </div>
+  </div>
+
+  <!-- OVERLAY BORRADO DE SABOTAGEM COM CRONÔMETRO -->
+  <div id="sabotage-overlay" class="fixed inset-0 bg-slate-950/85 fullscreen-overlay flex flex-col items-center justify-center p-6 z-50 hidden opacity-0">
+    <div class="glass-card max-w-sm w-full p-6 rounded-3xl border border-rose-500/40 text-center relative">
+      <div class="w-16 h-16 bg-rose-600/20 text-rose-400 border border-rose-500/30 rounded-2xl flex items-center justify-center mx-auto mb-3">
+        <i class="fa-solid fa-user-ninja text-2xl"></i>
+      </div>
+
+      <div class="absolute top-4 right-4 bg-rose-500/20 border border-rose-500/30 text-rose-400 font-mono font-black text-xs px-3 py-1 rounded-xl">
+        <span id="sabotage-overlay-timer">10</span>s
+      </div>
+
+      <h3 class="text-xl font-extrabold text-white">SABOTAR JOGADOR</h3>
+      <p class="text-xs text-slate-400 mt-1 mb-4">Escolha o alvo e o tipo de ataque!</p>
+
+      <div class="space-y-3 text-left">
+        <div>
+          <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Selecione o Alvo</label>
+          <select id="sabotage-target-select" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-500">
+          </select>
+        </div>
+
+        <div>
+          <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Tipo de Sabotagem</label>
+          <select id="sabotage-type-select" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-500">
+            <option value="STEAL_20">Roubar 20% do saldo do alvo</option>
+            <option value="FORCE_ALL_IN">Forçar o alvo a dar ALL-IN na próxima rodada</option>
+            <option value="FEE_1000">Cobrar taxa imediata de R$ 1.000,00 do alvo</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-2">
+          <button onclick="closeSabotageOverlay()" class="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition border border-slate-700">
+            CANCELAR
+          </button>
+          <button onclick="executeSabotage()" class="py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition shadow-lg shadow-rose-600/30">
+            EXECUTAR
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERLAY BORRADO DE NOTIFICAÇÃO DE SABOTAGEM SOFRIDA -->
+  <div id="sabotage-notice-overlay" class="fixed inset-0 bg-slate-950/85 fullscreen-overlay flex flex-col items-center justify-center p-6 z-50 hidden opacity-0">
+    <div class="glass-card max-w-sm w-full p-6 rounded-3xl border border-rose-500/50 text-center space-y-4">
+      <div class="w-16 h-16 bg-rose-600/20 text-rose-400 border border-rose-500/40 rounded-2xl flex items-center justify-center mx-auto animate-bounce">
+        <i class="fa-solid fa-triangle-exclamation text-3xl"></i>
+      </div>
+      <h3 class="text-2xl font-black text-white uppercase tracking-tight">VOCÊ FOI SABOTADO!</h3>
+      
+      <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 text-left space-y-2">
+        <p id="sabotage-attacker-text" class="text-xs font-bold text-rose-400">---</p>
+        <p id="sabotage-effect-text" class="text-xs text-slate-300 leading-relaxed">---</p>
+      </div>
+
+      <button onclick="closeSabotageNoticeOverlay()" class="w-full py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs tracking-wide transition shadow-lg shadow-rose-600/30">
+        ENTENDIDO
+      </button>
+    </div>
+  </div>
+
+  <!-- OVERLAY BORRADO DE FIM DE JOGO / CAMPEÃO -->
+  <div id="winner-overlay" class="fixed inset-0 bg-slate-950/90 fullscreen-overlay flex flex-col items-center justify-center p-6 z-50 hidden opacity-0">
+    <div class="glass-card max-w-md w-full p-8 rounded-3xl border border-amber-500/50 text-center space-y-5">
+      <div class="w-20 h-20 bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded-3xl flex items-center justify-center mx-auto shadow-2xl animate-pulse">
+        <i class="fa-solid fa-trophy text-4xl"></i>
+      </div>
+      <div>
+        <span class="text-xs uppercase text-amber-400 font-extrabold tracking-widest block">Grande Vencedor</span>
+        <h2 id="winner-name-text" class="text-3xl font-black text-white mt-1">---</h2>
+        <p id="winner-balance-text" class="text-lg font-bold text-emerald-400 mt-1">R$ 0</p>
+      </div>
+
+      <p id="winner-reason-text" class="text-xs text-slate-400 bg-slate-900/80 p-3 rounded-xl border border-slate-800">---</p>
+
+      <button onclick="location.reload()" class="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm tracking-wide transition shadow-lg shadow-amber-500/20">
+        JOGAR NOVAMENTE
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL DE RESGATE DE CÓDIGO -->
+  <div id="code-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+    <div class="glass-card max-w-sm w-full p-6 rounded-3xl border border-slate-700 relative">
+      <button onclick="closeCodeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+      
+      <div class="text-center mb-4">
+        <div class="w-12 h-12 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl flex items-center justify-center mx-auto mb-2">
+          <i class="fa-solid fa-key text-xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white">Digitar Código Secreto</h3>
+        <p class="text-xs text-slate-400">Insira o código recebido.</p>
+      </div>
+
+      <div class="space-y-3">
+        <input type="text" id="code-input" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-center text-lg font-mono font-bold text-amber-400 uppercase tracking-widest focus:outline-none focus:border-amber-500" placeholder="EX: 8AH2JH">
+        
+        <p id="code-message" class="text-xs text-center min-h-[16px] font-semibold"></p>
+
+        <button onclick="redeemCode()" class="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition shadow-lg shadow-amber-500/20">
+          RESGATAR CÓDIGO
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE ANÚNCIO DE CÓDIGO -->
+  <div id="secret-alert-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+    <div class="glass-card max-w-sm w-full p-6 rounded-3xl border border-amber-500/40 text-center relative">
+      <div class="w-14 h-14 bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded-2xl flex items-center justify-center mx-auto mb-3 animate-bounce">
+        <i class="fa-solid fa-gift text-2xl"></i>
+      </div>
+      <h3 class="text-xl font-black text-white">CÓDIGO SURPRESA!</h3>
+      <p id="secret-alert-target" class="text-xs text-slate-300 mt-1">Um código foi sorteado!</p>
+
+      <div class="my-4 bg-slate-900/90 p-3 rounded-2xl border border-slate-700 flex items-center justify-between">
+        <span id="secret-code-display" class="font-mono font-black text-xl text-amber-400 tracking-wider">------</span>
+        <button onclick="copySecretCode()" id="copy-btn" class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold border border-amber-500/30 transition">
+          <i class="fa-solid fa-copy"></i> Copiar
+        </button>
+      </div>
+
+      <button onclick="closeSecretAlertModal()" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition">
+        ENTENDIDO
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL DE REGRAS -->
+  <div id="rules-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+    <div class="glass-card max-w-md w-full p-6 rounded-3xl border border-slate-700 relative">
+      <button onclick="closeRulesModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div class="text-center mb-4">
+        <div class="w-12 h-12 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-xl flex items-center justify-center mx-auto mb-2">
+          <i class="fa-solid fa-trophy text-xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white">Regras do Jogo</h3>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+          <h4 class="font-bold text-indigo-400 mb-1">Como Ganhar?</h4>
+          <p>Seja o único jogador a não falir ou termine a quantidade de rodadas com o maior saldo acumulado!</p>
+        </div>
+
+        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+          <h4 class="font-bold text-rose-400 mb-1">Dificuldade Progressiva</h4>
+          <p>Conforme o jogo avança, os lucros diminuem e as perdas ficam muito mais severas!</p>
+        </div>
+      </div>
+
+      <button onclick="closeRulesModal()" class="w-full mt-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition">
+        ENTENDIDO
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ESTADO DO JOGO
+    let players = [];
+    let currentPlayerIndex = 0;
+    let selectedPlayerCount = 2;
+    let maxRounds = 10;
+    let currentRound = 1;
+    let isRolling = false;
+    let activeCodes = {};
+    let sabotageAvailable = false;
+    let sabotageTimer = null;
+    let sabotageTimeLeft = 10;
+
+    const diceRotations = {
+      1: { x: 0, y: 0 },
+      2: { x: 0, y: -90 },
+      3: { x: 0, y: -180 },
+      4: { x: 0, y: 90 },
+      5: { x: -90, y: 0 },
+      6: { x: 90, y: 0 }
+    };
+
+    // SIRENE VIA WEB AUDIO API
+    function playSirenSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sawtooth';
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(880, audioCtx.currentTime + 0.4);
+        osc.frequency.linearRampToValueAtTime(440, audioCtx.currentTime + 0.8);
+        osc.frequency.linearRampToValueAtTime(880, audioCtx.currentTime + 1.2);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1.5);
+      } catch (e) {
+        console.log("Áudio não ativado.");
+      }
+    }
+
+    // CONFIGURAÇÕES
+    function setPlayerCount(count) {
+      selectedPlayerCount = count;
+      document.querySelectorAll('.player-count-btn').forEach((btn, idx) => {
+        btn.className = idx + 1 === count 
+          ? "player-count-btn py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm border border-indigo-500"
+          : "player-count-btn py-2.5 rounded-xl bg-slate-800 text-white font-bold text-sm border border-slate-700";
+      });
+      renderPlayerInputs();
+    }
+
+    function setRoundLimit(rounds) {
+      maxRounds = rounds;
+      const opts = [5, 10, 15, 0];
+      document.querySelectorAll('.round-limit-btn').forEach((btn, idx) => {
+        btn.className = opts[idx] === rounds
+          ? "round-limit-btn py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs border border-indigo-500"
+          : "round-limit-btn py-2 rounded-xl bg-slate-800 text-white font-bold text-xs border border-slate-700";
+      });
+    }
+
+    function renderPlayerInputs() {
+      const container = document.getElementById('player-inputs-container');
+      container.innerHTML = '';
+      for (let i = 1; i <= selectedPlayerCount; i++) {
+        container.innerHTML += `
+          <div>
+            <input type="text" id="player-name-${i}" value="Jogador ${i}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+          </div>
+        `;
+      }
+    }
+
+    function startGame() {
+      players = [];
+      const colors = ['bg-indigo-600', 'bg-emerald-600', 'bg-amber-600', 'bg-rose-600'];
+      
+      for (let i = 1; i <= selectedPlayerCount; i++) {
+        const nameInput = document.getElementById(`player-name-${i}`);
+        const name = nameInput && nameInput.value.trim() ? nameInput.value.trim() : `Jogador ${i}`;
+        players.push({
+          id: i,
+          name: name,
+          balance: 10000,
+          color: colors[(i - 1) % colors.length],
+          forcedAllIn: false,
+          bankrupt: false,
+          pendingSabotageNotice: null
+        });
+      }
+
+      document.getElementById('setup-modal').classList.add('hidden');
+      currentPlayerIndex = 0;
+      currentRound = 1;
+      updateRoundTracker();
+      checkSabotageChance();
+      updateGameUI();
+      renderRollButton();
+    }
+
+    function updateRoundTracker() {
+      const tracker = document.getElementById('round-tracker');
+      const difficultyText = currentRound > 5 ? " 🔥 MODO PRESSÃO" : "";
+      tracker.innerText = maxRounds > 0 
+        ? `Rodada ${currentRound} de ${maxRounds}${difficultyText}` 
+        : `Rodada ${currentRound}${difficultyText}`;
+    }
+
+    function updateGameUI() {
+      const player = players[currentPlayerIndex];
+      if (!player) return;
+
+      document.getElementById('current-player-name').innerText = player.name;
+      document.getElementById('current-player-balance').innerText = `R$ ${player.balance.toLocaleString('pt-BR')}`;
+      
+      const avatarEl = document.getElementById('current-player-avatar');
+      avatarEl.innerText = `P${player.id}`;
+      avatarEl.className = `w-10 h-10 rounded-xl ${player.color} flex items-center justify-center font-bold text-white shadow-md`;
+
+      const betInput = document.getElementById('bet-input');
+      if (player.forcedAllIn) {
+        betInput.value = player.balance;
+        betInput.disabled = true;
+      } else {
+        betInput.disabled = false;
+        if (parseInt(betInput.value) > player.balance) {
+          betInput.value = Math.max(1, player.balance);
+        }
+      }
+    }
+
+    function setBetPercent(percent) {
+      const player = players[currentPlayerIndex];
+      if (!player || player.forcedAllIn) return;
+      const betInput = document.getElementById('bet-input');
+      betInput.value = Math.floor(player.balance * percent);
+    }
+
+    function renderRollButton() {
+      const container = document.getElementById('action-buttons-container');
+      container.innerHTML = `
+        <button id="roll-btn" onclick="rollDice()" class="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-base tracking-wide shadow-lg shadow-indigo-600/30 transition transform active:scale-95 flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-dice text-xl"></i>
+          <span>ROLAR DADOS</span>
+        </button>
+      `;
+    }
+
+    function renderNextTurnButton() {
+      const container = document.getElementById('action-buttons-container');
+      container.innerHTML = `
+        <button onclick="nextTurn()" class="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-base tracking-wide shadow-lg shadow-emerald-600/30 transition transform active:scale-95 flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-arrow-right text-xl"></i>
+          <span>PASSAR A VEZ / PRÓXIMO</span>
+        </button>
+      `;
+    }
+
+    // SABOTAGEM REDUZIDA (~6% DE CHANCE) COM TIMER DE 10 SEGUNDOS
+    function checkSabotageChance() {
+      sabotageAvailable = Math.random() < 0.06 && players.filter(p => p.balance > 0).length > 1;
+      const sabBox = document.getElementById('sabotage-container');
+      
+      clearInterval(sabotageTimer);
+
+      if (sabotageAvailable) {
+        sabBox.classList.remove('hidden');
+        sabotageTimeLeft = 10;
+        document.getElementById('sabotage-btn-timer').innerText = `${sabotageTimeLeft}s`;
+
+        sabotageTimer = setInterval(() => {
+          sabotageTimeLeft--;
+          document.getElementById('sabotage-btn-timer').innerText = `${sabotageTimeLeft}s`;
+          document.getElementById('sabotage-overlay-timer').innerText = sabotageTimeLeft;
+
+          if (sabotageTimeLeft <= 0) {
+            clearInterval(sabotageTimer);
+            sabBox.classList.add('hidden');
+            closeSabotageOverlay();
+          }
+        }, 1000);
+      } else {
+        sabBox.classList.add('hidden');
+      }
+    }
+
+    function openSabotageOverlay() {
+      const select = document.getElementById('sabotage-target-select');
+      select.innerHTML = '';
+      players.forEach((p, idx) => {
+        if (idx !== currentPlayerIndex && p.balance > 0) {
+          select.innerHTML += `<option value="${idx}">${p.name} (R$ ${p.balance.toLocaleString('pt-BR')})</option>`;
+        }
+      });
+
+      const overlay = document.getElementById('sabotage-overlay');
+      overlay.classList.remove('hidden');
+      setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+    }
+
+    function closeSabotageOverlay() {
+      const overlay = document.getElementById('sabotage-overlay');
+      overlay.classList.add('opacity-0');
+      setTimeout(() => overlay.classList.add('hidden'), 400);
+    }
+
+    function executeSabotage() {
+      const targetIdx = parseInt(document.getElementById('sabotage-target-select').value);
+      const type = document.getElementById('sabotage-type-select').value;
+      const attacker = players[currentPlayerIndex];
+      const target = players[targetIdx];
+
+      if (!target) return;
+
+      let effectDesc = '';
+
+      if (type === 'STEAL_20') {
+        const amount = Math.floor(target.balance * 0.2);
+        target.balance -= amount;
+        attacker.balance += amount;
+        effectDesc = `Roubou R$ ${amount.toLocaleString('pt-BR')} do seu saldo!`;
+      } else if (type === 'FORCE_ALL_IN') {
+        target.forcedAllIn = true;
+        effectDesc = `Forçou você a dar ALL-IN na sua próxima jogada!`;
+      } else if (type === 'FEE_1000') {
+        target.balance = Math.max(0, target.balance - 1000);
+        effectDesc = `Cobrou uma multa imediata de R$ 1.000,00 do seu saldo!`;
+      }
+
+      target.pendingSabotageNotice = {
+        attackerName: attacker.name,
+        effectDesc: effectDesc
+      };
+
+      clearInterval(sabotageTimer);
+      document.getElementById('sabotage-container').classList.add('hidden');
+      closeSabotageOverlay();
+      updateGameUI();
+    }
+
+    function closeSabotageNoticeOverlay() {
+      const overlay = document.getElementById('sabotage-notice-overlay');
+      overlay.classList.add('opacity-0');
+      setTimeout(() => overlay.classList.add('hidden'), 400);
+    }
+
+    // ROLAR DADOS COM DIFICULDADE PROGRESSIVA
+    function rollDice() {
+      if (isRolling) return;
+
+      const player = players[currentPlayerIndex];
+      const betInput = document.getElementById('bet-input');
+      let bet = parseInt(betInput.value);
+
+      if (isNaN(bet) || bet <= 0 || bet > player.balance) {
+        return;
+      }
+
+      isRolling = true;
+      clearInterval(sabotageTimer);
+      document.getElementById('sabotage-container').classList.add('hidden');
+
+      const val1 = Math.floor(Math.random() * 6) + 1;
+      const val2 = Math.floor(Math.random() * 6) + 1;
+      const sum = val1 + val2;
+
+      const dice1 = document.getElementById('dice1');
+      const dice2 = document.getElementById('dice2');
+
+      const rot1 = diceRotations[val1];
+      const rot2 = diceRotations[val2];
+
+      dice1.style.transform = `rotateX(${rot1.x + 1080}deg) rotateY(${rot1.y + 1080}deg)`;
+      dice2.style.transform = `rotateX(${rot2.x + 1080}deg) rotateY(${rot2.y + 1080}deg)`;
+
+      setTimeout(() => {
+        document.getElementById('dice-sum').innerText = sum;
+        const result = calculateOutcome(sum, bet);
+        player.balance += result.change;
+        player.forcedAllIn = false;
+
+        if (player.balance <= 0) {
+          player.balance = 0;
+          if (!player.bankrupt) {
+            player.bankrupt = true;
+            playSirenSound();
+          }
+        }
+
+        updateGameUI();
+        showResultBadge(result.message, result.isGain);
+
+        // AUMENTADA A FREQUÊNCIA DOS CÓDIGOS PARA ~35%
+        if (Math.random() < 0.35) {
+          triggerSecretCodeEvent();
+        }
+
+        renderNextTurnButton();
+        isRolling = false;
+      }, 1500);
+    }
+
+    // TABELA COM DIFICULDADE PROGRESSIVA
+    function calculateOutcome(sum, bet) {
+      // Fator de dificuldade aumenta após a rodada 4
+      const isHardMode = currentRound > 4;
+
+      if (isHardMode) {
+        // MODO PRESSÃO: Ganha menos, perde muito mais!
+        switch(sum) {
+          case 12: return { change: Math.floor(bet * 0.75), message: "SOMA 12: +75% (PRESSÃO)", isGain: true };
+          case 11: return { change: Math.floor(bet * 0.30), message: "SOMA 11: +30% (PRESSÃO)", isGain: true };
+          case 10: return { change: Math.floor(bet * 0.15), message: "SOMA 10: +15% (PRESSÃO)", isGain: true };
+          case 9:  return { change: 0, message: "SOMA 9: NEUTRO (PRESSÃO)", isGain: true };
+          case 8:  return { change: -Math.floor(bet * 0.20), message: "SOMA 8: -20% (PRESSÃO)", isGain: false };
+          case 7:  return { change: -Math.floor(bet * 0.35), message: "SOMA 7: -35% (PRESSÃO)", isGain: false };
+          case 6:  return { change: -Math.floor(bet * 0.50), message: "SOMA 6: -50% (PRESSÃO)", isGain: false };
+          case 5:  return { change: -Math.floor(bet * 0.70), message: "SOMA 5: -70% (PRESSÃO)", isGain: false };
+          case 4:  return { change: -Math.floor(bet * 0.85), message: "SOMA 4: -85% (PRESSÃO)", isGain: false };
+          case 3:  return { change: -bet, message: "SOMA 3: PERDA TOTAL (-100%)!", isGain: false };
+          case 2:  return { change: -bet, message: "SOMA 2: PERDA TOTAL (-100%)!", isGain: false };
+          default: return { change: 0, message: "", isGain: true };
+        }
+      } else {
+        // MODO NORMAL (RODADAS INICIAIS)
+        switch(sum) {
+          case 12: return { change: Math.floor(bet * 1.0), message: "SOMA 12: +100%!", isGain: true };
+          case 11: return { change: Math.floor(bet * 0.5), message: "SOMA 11: +50%!", isGain: true };
+          case 10: return { change: Math.floor(bet * 0.3), message: "SOMA 10: +30%!", isGain: true };
+          case 9:  return { change: Math.floor(bet * 0.1), message: "SOMA 9: +10%!", isGain: true };
+          case 8:  return { change: 0, message: "SOMA 8: NEUTRO", isGain: true };
+          case 7:  return { change: -Math.floor(bet * 0.1), message: "SOMA 7: -10%", isGain: false };
+          case 6:  return { change: -Math.floor(bet * 0.2), message: "SOMA 6: -20%", isGain: false };
+          case 5:  return { change: -Math.floor(bet * 0.35), message: "SOMA 5: -35%", isGain: false };
+          case 4:  return { change: -Math.floor(bet * 0.5), message: "SOMA 4: -50%", isGain: false };
+          case 3:  return { change: -Math.floor(bet * 0.75), message: "SOMA 3: -75%", isGain: false };
+          case 2:  return { change: -bet, message: "SOMA 2: PERDA TOTAL (-100%)!", isGain: false };
+          default: return { change: 0, message: "", isGain: true };
+        }
+      }
+    }
+
+    function showResultBadge(message, isGain) {
+      const badge = document.getElementById('result-badge');
+      badge.innerText = message;
+      badge.className = `transition-opacity duration-300 mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border ${
+        isGain ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+      }`;
+      badge.style.opacity = '1';
+    }
+
+    function triggerSecretCodeEvent() {
+      const targetPlayer = players[currentPlayerIndex];
+      const code = generateRandomCode();
+      const effect = generateRandomEffect();
+
+      activeCodes[code] = effect;
+
+      document.getElementById('secret-alert-target').innerText = `${targetPlayer.name} recebeu um código secreto!`;
+      document.getElementById('secret-code-display').innerText = code;
+      document.getElementById('secret-alert-modal').classList.remove('hidden');
+    }
+
+    function generateRandomCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    function generateRandomEffect() {
+      const effects = [
+        { type: 'MULT_GAIN', val: 2, desc: 'BÔNUS: DOBROU O SALDO!' },
+        { type: 'FIXED_GAIN', val: 3000, desc: 'BÔNUS: +R$ 3.000,00!' },
+        { type: 'FIXED_LOSS', val: 2000, desc: 'MULTA: -R$ 2.000,00!' },
+        { type: 'PERCENT_LOSS', val: 0.5, desc: 'AZAR: PERDEU 50% DO SALDO!' }
+      ];
+      return effects[Math.floor(Math.random() * effects.length)];
+    }
+
+    function copySecretCode() {
+      const codeText = document.getElementById('secret-code-display').innerText;
+      navigator.clipboard.writeText(codeText);
+      document.getElementById('copy-btn').innerHTML = `<i class="fa-solid fa-check"></i> Copiado!`;
+    }
+
+    function closeSecretAlertModal() {
+      document.getElementById('secret-alert-modal').classList.add('hidden');
+    }
+
+    // EXIBIR VENCEDOR EM TELA CHEIA BORRADA
+    function showWinnerOverlay(winnerName, winnerBalance, reason) {
+      document.getElementById('winner-name-text').innerText = winnerName;
+      document.getElementById('winner-balance-text').innerText = `R$ ${winnerBalance.toLocaleString('pt-BR')}`;
+      document.getElementById('winner-reason-text').innerText = reason;
+
+      const overlay = document.getElementById('winner-overlay');
+      overlay.classList.remove('hidden');
+      setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+    }
+
+    // TRANSIÇÃO DE TURNO
+    function nextTurn() {
+      const activePlayers = players.filter(p => p.balance > 0);
+
+      if (activePlayers.length <= 1 && players.length > 1) {
+        const winner = activePlayers[0] ? activePlayers[0] : { name: 'Ninguém', balance: 0 };
+        showWinnerOverlay(winner.name, winner.balance, 'Vitória por Sobrevivência (Todos os rivais faliram)!');
+        return;
+      }
+
+      let nextIdx = (currentPlayerIndex + 1) % players.length;
+      if (nextIdx === 0) {
+        currentRound++;
+        updateRoundTracker();
+
+        if (maxRounds > 0 && currentRound > maxRounds) {
+          const winner = [...players].sort((a,b) => b.balance - a.balance)[0];
+          showWinnerOverlay(winner.name, winner.balance, `Maior patrimônio acumulado ao fim das ${maxRounds} rodadas!`);
+          return;
+        }
+      }
+
+      while (players[nextIdx].balance <= 0) {
+        nextIdx = (nextIdx + 1) % players.length;
+      }
+
+      currentPlayerIndex = nextIdx;
+      const nextPlayer = players[currentPlayerIndex];
+
+      if (nextPlayer.pendingSabotageNotice) {
+        const notice = nextPlayer.pendingSabotageNotice;
+        nextPlayer.pendingSabotageNotice = null;
+
+        document.getElementById('sabotage-attacker-text').innerText = `ATACADO POR: ${notice.attackerName}`;
+        document.getElementById('sabotage-effect-text').innerText = notice.effectDesc;
+
+        const noticeOverlay = document.getElementById('sabotage-notice-overlay');
+        noticeOverlay.classList.remove('hidden');
+        setTimeout(() => noticeOverlay.classList.remove('opacity-0'), 10);
+      }
+
+      const overlay = document.getElementById('turn-overlay');
+      const avatar = document.getElementById('overlay-avatar');
+      
+      avatar.innerText = `P${nextPlayer.id}`;
+      avatar.className = `w-20 h-20 rounded-2xl ${nextPlayer.color} flex items-center justify-center text-3xl font-black text-white shadow-2xl mx-auto`;
+
+      document.getElementById('overlay-title').innerText = `VEZ DE ${nextPlayer.name}`;
+      
+      overlay.classList.remove('hidden');
+      setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+    }
+
+    function closeTurnOverlay() {
+      const overlay = document.getElementById('turn-overlay');
+      overlay.classList.add('opacity-0');
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+        checkSabotageChance();
+        updateGameUI();
+        renderRollButton();
+        document.getElementById('result-badge').style.opacity = '0';
+        document.getElementById('dice-sum').innerText = '--';
+      }, 400);
+    }
+
+    // CÓDIGO
+    function openCodeModal() {
+      document.getElementById('code-input').value = '';
+      document.getElementById('code-message').innerText = '';
+      document.getElementById('code-modal').classList.remove('hidden');
+    }
+
+    function closeCodeModal() {
+      document.getElementById('code-modal').classList.add('hidden');
+    }
+
+    function redeemCode() {
+      const input = document.getElementById('code-input').value.trim().toUpperCase();
+      const msgEl = document.getElementById('code-message');
+      const player = players[currentPlayerIndex];
+
+      if (!input || !activeCodes[input]) {
+        msgEl.innerText = "Código inválido!";
+        msgEl.className = "text-xs text-center min-h-[16px] font-semibold text-rose-400";
+        return;
+      }
+
+      const effect = activeCodes[input];
+      delete activeCodes[input];
+
+      if (effect.type === 'MULT_GAIN') player.balance *= effect.val;
+      else if (effect.type === 'FIXED_GAIN') player.balance += effect.val;
+      else if (effect.type === 'FIXED_LOSS') player.balance = Math.max(0, player.balance - effect.val);
+      else if (effect.type === 'PERCENT_LOSS') player.balance = Math.floor(player.balance * (1 - effect.val));
+
+      msgEl.innerText = `ÉXITO: ${effect.desc}`;
+      msgEl.className = "text-xs text-center min-h-[16px] font-semibold text-emerald-400";
+
+      updateGameUI();
+      setTimeout(closeCodeModal, 1500);
+    }
+
+    function openRulesModal() { document.getElementById('rules-modal').classList.remove('hidden'); }
+    function closeRulesModal() { document.getElementById('rules-modal').classList.add('hidden'); }
+
+    window.onload = () => { renderPlayerInputs(); };
+  </script>
+</body>
+</html>

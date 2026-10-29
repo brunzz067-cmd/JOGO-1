@@ -1,0 +1,6 @@
+{
+  "name": "PROBADADOS - Jogo de Probabilidade com Dados",
+  "description": "Jogo dinâmico e estratégico de probabilidade com dados 3D em tempo real, apostas com gestão de risco, sabotagens contra adversários e códigos surpresa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
